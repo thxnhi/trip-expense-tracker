@@ -10,18 +10,29 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "supabase db push",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check src/lib/supabase src/app/auth src/app/login src/app/reset-password src/lib/office-*.ts src/app/components/*Editor.tsx src/app/components/ActionForm.tsx src/app/components/AppShell.tsx src/app/components/OfficeUI.tsx src/app/components/CopyButton.tsx src/app/components/ImageUpload.tsx src/app/components/ReceiptScanner.tsx src/app/groups src/app/expenses src/app/invite src/app/profile src/app/notifications src/app/statistics src/app/api src/proxy.ts",
+    "e2e:prepare": "node scripts/prepare-e2e.mjs",
+    "deploy:check": "node scripts/check-production-env.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "big.js": "^7.0.1",
+    "heic2any": "^0.0.4",
     "next": "16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "sharp": "^0.34.5",
+    "tus-js-client": "^4.3.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.61.1",
     "@types/big.js": "^7.0.0",
     "@types/node": "^20",
@@ -30,9 +41,11 @@
     "@vitest/ui": "^4.1.9",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "prettier": "^3.9.9",
+    "supabase": "^2.119.0",
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.9"
   },
-  "description": "Trip bill splitter — net balance per person (spec v1)"
+  "description": "Office group expenses — Supabase Auth, PostgreSQL, private images and Groq OCR"
 }

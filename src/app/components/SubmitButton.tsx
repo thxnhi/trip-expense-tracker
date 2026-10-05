@@ -11,15 +11,17 @@ export default function SubmitButton({
   label,
   pendingLabel,
   className,
+  disabled = false,
 }: {
   label: ReactNode;
   /** Shown while the form action is in flight, e.g. "Saving…". */
   pendingLabel: ReactNode;
   className?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className={className} disabled={pending}>
+    <button type="submit" className={className} disabled={pending || disabled}>
       {pending ? pendingLabel : label}
     </button>
   );

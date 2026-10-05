@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
@@ -32,7 +33,12 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 !.env.local.example
+
+# Supabase CLI local state
+/supabase/.temp/
+/supabase/.branches/
 
 # local libSQL fallback DB (dev/tests when TURSO_DATABASE_URL is unset)
 /local.db

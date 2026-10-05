@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+// Session-dependent pages must never become cached redirects during an env-less build.
+export const dynamic = "force-dynamic";
+
 // Geist / Geist Mono: a clean neo-grotesque pairing that echoes the OpenAI
 // "Supply Co." aesthetic — a crisp humanist sans for display + body, and a
 // monospace used for the small uppercase eyebrow / section labels. Both are
@@ -19,8 +22,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trip Splitter",
-  description: "Split trip expenses with friends — track who paid and who owes.",
+  title: "Chia tiền văn phòng",
+  description:
+    "Ghi chi phí nhóm, chia tiền và xác nhận chuyển khoản trên PC và điện thoại.",
 };
 
 export default function RootLayout({
@@ -29,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html lang="vi" className={`${geist.variable} ${geistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

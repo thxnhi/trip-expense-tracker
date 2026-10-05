@@ -1,151 +1,145 @@
-# Trip Expense Tracker
+# Chia tiền văn phòng
 
-Split trip bills fairly. Create a trip, add people, log expenses (split evenly or
-by custom amounts), and see the **net balance per person** — who owes and who's
-owed. No accounts: a trip is shared by link, and anyone with the link can view
-and add expenses. Receipts can be scanned from a photo with a local vision model.
+Web app tiếng Việt để ứng tiền và thu lại tiền trong nhóm. Người tạo expense chọn
+người chia, thành viên báo đã chuyển, người ứng tiền xác nhận; expense hoàn tất
+khi tất cả khoản cần chuyển được xác nhận. Dùng cùng một URL trên PC và mobile.
 
-## Tech stack
+## Tính năng
 
-- **Next.js 16** (App Router, Turbopack) + **React 19** + **TypeScript**
-- **libSQL / Turso** for storage (with a local-file fallback for offline dev)
-- **Ollama + `qwen2.5vl:3b`** for on-device receipt OCR (no external API)
-- **sharp** for image normalization
-- **Vitest** (unit) + **Playwright** (e2e)
+- Google hoặc email/mật khẩu; xác minh email và khôi phục mật khẩu.
+- Nhóm riêng tư, link mời và duyệt thành viên.
+- Hồ sơ ngân hàng, nội dung chuyển khoản và QR riêng của từng tài khoản.
+- Chia đều hoặc số tiền riêng, chọn tất cả/bỏ người; tiền tính chính xác theo tiền tệ nhóm.
+- Báo chuyển, xác nhận/từ chối, lịch sử thanh toán, hủy để đối soát.
+- Thông báo trong app và thống kê theo nhóm, thành viên, ngày.
+- Mobile chụp hóa đơn hoặc chọn ảnh; PC chọn file. Quét ảnh bằng Groq rồi kiểm tra trước khi lưu.
 
----
+## Kiến trúc
 
-## Prerequisites
+| Thành phần                             | Dịch vụ           |
+| -------------------------------------- | ----------------- |
+| Giao diện và API Next.js 16 / React 19 | Vercel            |
+| PostgreSQL, transaction RPC và RLS     | Supabase Database |
+| Tài khoản, Google, session và email    | Supabase Auth     |
+| Ảnh hóa đơn và QR private              | Supabase Storage  |
+| Đọc hóa đơn từ ảnh                     | Groq Vision API   |
 
-- **Node.js 20+** (developed on 24)
-- **Ollama** — only needed for the "Scan receipt" feature ([ollama.com](https://ollama.com))
-- A **Turso** database is optional — without one, the app uses a local SQLite file (`local.db`)
+Production chạy hoàn toàn trên cloud. Không cần máy cá nhân bật, SQLite, ổ đĩa
+uploads hay Ollama. Có thể nhập expense bằng tay khi OCR chưa được cấu hình.
 
----
+## Chạy phát triển
 
-## Quick start (local development)
+Cần Node.js 22+ và npm. Dùng một project Supabase phát triển riêng hoặc chạy
+Supabase local bằng Docker:
 
 ```bash
-# 1. Install dependencies
-npm install
+npm ci
+cp .env.example .env.local
+npm run db:start
+npx supabase status
+```
 
-# 2. Create your env file
-cp .env.local.example .env.local
-#    The defaults work offline — no editing required for a first run.
+Điền URL/key của Supabase local vào `.env.local`, bao gồm publishable/anon key và
+secret/service-role key. Supabase local tạo database, Auth, Storage và hộp thư
+local. Migration trong `supabase/migrations/` được áp dụng khi khởi động local;
+để làm mới schema trên môi trường local có thể dùng `npx supabase db reset` — lệnh
+này xóa dữ liệu local, không dùng cho dữ liệu cần giữ.
 
-# 3. Set up the database schema
-npm run migrate
-#    With TURSO_DATABASE_URL unset, this creates/updates the local file `local.db`.
-
-# 4. (Optional) Start the receipt scanner backend
-brew install ollama         # or see ollama.com for other platforms
-ollama serve                # leave running in another terminal
-ollama pull qwen2.5vl:3b    # ~3.2 GB, one-time download
-
-# 5. Run the dev server
+```bash
 npm run dev
 ```
 
-Open **http://localhost:3000**. Create a trip, add yourself, and start logging
-expenses. (Skip step 4 if you don't need photo scanning — everything else works
-without it.)
+Mở `http://localhost:3000`. Email local xem ở `http://localhost:54324`.
+Với project Supabase hosted, link CLI đến project và chạy `npm run migrate`
+trước khi chạy app. Không dùng project production để phát triển hoặc kiểm thử.
 
----
+## Biến môi trường
 
-## Environment variables
+Mẫu đầy đủ nằm trong [`.env.example`](.env.example); `.env.local.example` có cùng nội dung.
+Các file `.env.local`, `.env.production` và `.env.test.local` được gitignore.
 
-Copy `.env.local.example` → `.env.local` (gitignored). All values are optional
-for local dev.
+| Biến                                   | Mục đích                                                          |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| `APP_URL`                              | URL HTTPS production, hoặc `http://localhost:3000` khi phát triển |
+| `NEXT_PUBLIC_SUPABASE_URL`             | URL project Supabase                                              |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key; có thể dùng legacy anon key                      |
+| `SUPABASE_SECRET_KEY`                  | Secret key hoặc legacy service-role key, chỉ ở server             |
+| `GROQ_API_KEY`                         | Server gọi OCR; không cần cho nhập tay                            |
+| `GROQ_OCR_MODEL`                       | Mặc định `qwen/qwen3.8-27b`, có thể đổi model vision tương thích  |
+| `CRON_SECRET`                          | Chuỗi ngẫu nhiên ít nhất 32 ký tự để bảo vệ dọn ảnh               |
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `TURSO_DATABASE_URL` | _(empty)_ | Turso/libSQL URL. Empty → local file `local.db`. |
-| `TURSO_AUTH_TOKEN` | _(empty)_ | Turso auth token (only with a remote URL). |
-| `APP_URL` | `http://localhost:3000` | Base URL used to build shareable trip links. |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama server for receipt OCR. |
-| `OCR_MODEL` | `qwen2.5vl:3b` | Vision model used to read receipts. |
-| `STORAGE_ADAPTER` | `local` | Receipt photo storage. Only `local` is implemented today (see [Deployment](#deployment)). |
-
----
-
-## Receipt scanning (OCR)
-
-The "Scan receipt" flow sends the uploaded photo to a **local vision model**
-(`qwen2.5vl:3b`) via Ollama, which returns the amount, merchant, and date in one
-shot — images never leave the machine, and there's no API key or per-call cost.
-
-- Requires `ollama serve` running with the model pulled (see step 4 above).
-- If Ollama is unreachable or the model is missing, the API returns a clear error
-  and the upload is discarded — the rest of the app is unaffected.
-
-**Model comparison harness.** [`scripts/ocr-compare/`](scripts/ocr-compare/)
-benchmarks Gemini, Ollama VLMs, and PaddleOCR on the same image — see its
-[README](scripts/ocr-compare/README.md) to evaluate alternatives.
-
----
-
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Start the dev server (Turbopack) on :3000 |
-| `npm run build` | Production build |
-| `npm run start` | Serve the production build |
-| `npm run migrate` | Apply `src/db/schema.sql` to the database |
-| `npm run lint` | ESLint |
-| `npm test` | Run unit tests (Vitest) |
-| `npm run test:watch` | Vitest in watch mode |
-| `npm run e2e` | Run Playwright end-to-end tests |
-
----
-
-## Production build (single host)
+Google OAuth và SMTP được cấu hình trong **Supabase Auth dashboard**, không phải
+client hoặc biến `NEXT_PUBLIC_*`. Các thông tin CLI/dashboard tùy chọn được chú
+thích trong mẫu env; không import các thông tin quản trị đó vào Vercel.
 
 ```bash
-npm run build
-npm run start   # serves on :3000 (set PORT to change)
+cp .env.example .env.production
+# Điền cấu hình production trong file; không commit hoặc gửi secrets vào chat.
+node --env-file=.env.production scripts/check-production-env.mjs
 ```
 
-Before running in production, set in the environment:
+`.env.production` trên máy không tự cấu hình Vercel: phải đưa các biến app ở trên
+vào dashboard Vercel trước build, vì `NEXT_PUBLIC_*` được cố định trong bundle khi build.
+Xem [hướng dẫn deploy đầy đủ](docs/deployment.md).
 
-- `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` — a real database (don't ship the
-  local file), and run `npm run migrate` against it once.
-- `APP_URL` — your public URL, so shareable trip links are correct.
-- `OLLAMA_URL` — pointing at a reachable Ollama instance if you want OCR.
+## Ảnh và OCR
 
----
+Ảnh upload trực tiếp từ browser đến **Supabase Storage private** qua token giới
+hạn vào một đường dẫn server cấp. Dùng TUS để thử lại khi mạng mobile gián đoạn;
+file không đi qua giới hạn request 4,5 MB của Vercel.
 
-## Deployment
+- Hóa đơn tối đa 15 MB; QR tối đa 5 MB. Nhận JPEG/PNG/WebP và chuyển HEIC sang JPEG trên browser.
+- Browser chuẩn hóa kích thước; server kiểm tra bytes thật, xoay ảnh, bỏ EXIF và tạo JPEG xem trước.
+- Ảnh private chỉ xem được sau kiểm tra session/RLS, bằng signed URL 5 phút.
+- OCR gửi bản chuẩn hóa tới Groq khi người dùng bấm **Quét hóa đơn**; kết quả luôn phải kiểm tra trước lưu.
+- Mỗi tài khoản tối đa 1 lượt quét đồng thời và 10 lượt/phút, lưu trên PostgreSQL.
+- Deadline OCR là 45 giây; lỗi ảnh/mạng/provider cho phép nhập tay hoặc thử lại thủ công, không tự gọi lại Groq.
+- Cron daily lúc 20:00 UTC dọn tối đa 100 ảnh chưa gắn expense/hồ sơ, đã cũ hơn 24 giờ. Với lưu lượng cao, tăng tần suất theo gói Vercel hoặc chạy thêm lượt cron có xác thực.
 
-This is a standard full-stack Next.js app — **UI, API routes, and server actions
-deploy as one unit.** There is no separate frontend/backend to deploy.
+Tham khảo chính thức: [Supabase resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads),
+[Groq Vision](https://console.groq.com/docs/vision).
 
-**Two things to know before you publish:**
+## Kiểm thử
 
-1. **Receipt photos currently persist to the local filesystem** (`public/uploads/`).
-   That works on a single long-lived host with a persistent disk, but **not** on
-   serverless or multi-instance setups. For those, implement an object-storage
-   adapter (an `r2`/`s3` branch is stubbed in [`src/lib/storage.ts`](src/lib/storage.ts)).
-2. **OCR needs Ollama reachable at `OLLAMA_URL`.** The model wants real compute
-   (a GPU host is ideal); it cannot run inside a serverless function. Point
-   `OLLAMA_URL` at a dedicated instance, or swap the OCR provider for a hosted
-   vision API (see the comparison harness).
+```bash
+npm run lint
+npx tsc --noEmit
+npm test
+npm run build
+```
 
-### Recommended shape (AWS)
+Unit/integration tests dùng Vitest và PostgreSQL/PGlite cho migration, RPC, RLS,
+làm tròn và thống kê; OCR/provider dùng mock để không phát sinh phí.
 
-- **App** → containerize with Next.js `output: "standalone"` and run on **AWS
-  App Runner** or **ECS/Fargate** (needs a Node runtime for `sharp` + `fs`).
-- **Database** → **Turso** (managed; already supported) — no AWS DB required.
-- **Receipt storage** → **S3** (implement the storage adapter first).
-- **OCR** → run **Ollama on a GPU instance** (e.g. EC2 `g5`), or switch to a
-  hosted vision model (Amazon Bedrock / Gemini) to avoid managing a GPU.
+Kiểm thử browser dùng Supabase local thật, không dùng production. Điền local
+URL/key vào `.env.test.local`, đặt `APP_URL=http://localhost:3100`, rồi chạy:
 
-### Simplest path (any container host)
+```bash
+npm run db:start
+npm run e2e:prepare
+npx playwright install chromium
+npm run e2e
+```
 
-If you don't need horizontal scaling, a single container/VM with a mounted
-volume for `public/uploads` + Ollama running alongside works out of the box —
-just set the env vars above and run `npm run build && npm run start`.
+E2E dùng Next dev port 3100, build cache `.next-e2e` riêng và mock Groq local.
+Nếu Chromium đã có sẵn trong cache Playwright (kể cả bản cài bằng Python),
+cấu hình tự tìm và dùng lại nên có thể bỏ bước tải browser. Có thể chỉ định
+đường dẫn binary bằng `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
+Kiểm tra camera thực tế trên Safari iPhone và Chrome Android trước phát hành:
+quyền camera/bộ chọn ảnh, HEIC, mạng yếu và kiểm tra lại các trường đã quét.
 
-> Next.js also deploys to **Vercel** with one click, but note the two caveats
-> above: filesystem uploads and a self-hosted Ollama don't fit Vercel's
-> serverless model — you'd need S3-backed storage and a hosted OCR provider first.
+GitHub Actions trong [`.github/workflows/check.yml`](.github/workflows/check.yml)
+chạy lint, typecheck, unit/integration tests, production build và E2E trên Supabase
+Docker local. Không cần credentials production; Groq được mock. Trace và ảnh lỗi
+browser giữ 7 ngày; CLI startup log chứa credentials local không được upload.
+
+## Vận hành và giới hạn bản đầu
+
+`GET /api/health` trả `ok`/`unavailable` và mã 200/503, không lộ credentials hoặc
+invoice. Vercel logs không ghi raw phản hồi Groq hay signed URL. Cron yêu cầu
+`Authorization: Bearer <CRON_SECRET>`; Vercel tự gửi header này khi cấu hình secret.
+
+Chưa hỗ trợ trả từng phần, đối soát giao dịch ngân hàng, QR động, xuất CSV hay
+email thông báo nghiệp vụ. Dữ liệu chuyến đi cũ không được chuyển hoặc tự xóa;
+các đường dẫn công khai cũ đã đóng. Bộ kiểm thử legacy giữ riêng để kiểm tra phép
+tính/migration cũ, không dùng làm luồng production mới.

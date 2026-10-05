@@ -1,0 +1,64 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit and database integration tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Start isolated local Supabase
+        shell: bash
+        run: |
+          # CLI output contains local credentials: keep it out of Actions logs/artifacts.
+          if ! npm run db:start > "$RUNNER_TEMP/supabase-start.log" 2>&1; then
+            echo "Local Supabase failed to start; no credentials were printed."
+            exit 1
+          fi
+      - name: Prepare local E2E credentials
+        run: npm run e2e:prepare
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser tests
+        run: npm run e2e
+      - name: Save browser failure traces
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-failure-traces
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop local Supabase
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: npm run db:stop > "$RUNNER_TEMP/supabase-stop.log" 2>&1
