@@ -1,35 +1,84 @@
-import { defineConfig, devices } from "@playwright/test";
-import { E2E_PORT } from "./tests/e2e/env";
+import { chromium, defineConfig, devices } from "@playwright/test";
+import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 
-// e2e runs against an isolated file DB + console email + local storage (see env.ts).
+try {
+  process.loadEnvFile(".env.test.local");
+} catch {
+  /* setup-only smoke tests need no credentials */
+}
+process.env.APP_URL = "http://localhost:3100";
+
+function installedChromium() {
+  const override = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+  if (override) {
+    if (!existsSync(override))
+      throw new Error("PLAYWRIGHT_CHROMIUM_EXECUTABLE does not exist.");
+    return override;
+  }
+  if (existsSync(chromium.executablePath())) return chromium.executablePath();
+  const cache =
+    process.env.PLAYWRIGHT_BROWSERS_PATH ||
+    (process.platform === "darwin"
+      ? path.join(homedir(), "Library", "Caches", "ms-playwright")
+      : path.join(homedir(), ".cache", "ms-playwright"));
+  if (!existsSync(cache)) return undefined;
+  const versions = readdirSync(cache)
+    .filter((name) => /^chromium-\d+$/.test(name))
+    .sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]));
+  for (const version of versions) {
+    for (const binary of [
+      "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+      "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+      "chrome-linux/chrome",
+      "chrome-linux64/chrome",
+      "chrome-win/chrome.exe",
+    ]) {
+      const candidate = path.join(cache, version, binary);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
+const executablePath = installedChromium();
+
 export default defineConfig({
-  testDir: "tests/e2e",
-  globalSetup: "./tests/e2e/global-setup.ts",
-  timeout: 45_000,
-  expect: { timeout: 10_000 },
+  testDir: "tests/e2e-office",
+  globalSetup: "./tests/e2e-office/global-setup.ts",
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
   fullyParallel: false,
-  workers: 1, // single worker: one shared file DB + dev server
+  workers: 1,
   reporter: [["list"]],
   use: {
-    baseURL: `http://localhost:${E2E_PORT}`,
-    trace: "on-first-retry",
+    baseURL: "http://localhost:3100",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    launchOptions: executablePath ? { executablePath } : {},
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile",
+      use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" },
+    },
+  ],
   webServer: {
-    // Build + prod start (not `next dev`) so e2e can run alongside the user's own
-    // `next dev` — Next 16 forbids two `next dev` on one project, but dev + build
-    // use separate output dirs and coexist.
-    command: `next build && next start -p ${E2E_PORT}`,
-    port: E2E_PORT,
-    reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
+    command: "npm run dev -- --port 3100",
+    port: 3100,
+    timeout: 120_000,
+    reuseExistingServer: false,
     env: {
-      TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL!,
-      AUTH_SECRET: process.env.AUTH_SECRET!,
-      AUTH_URL: process.env.AUTH_URL!,
-      EMAIL_ADAPTER: "console",
-      STORAGE_ADAPTER: "local",
-      UPLOADS_DIR: process.env.UPLOADS_DIR!,
+      E2E_TEST: "1",
+      APP_URL: "http://localhost:3100",
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "",
+      SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY || "",
+      GROQ_API_KEY: "e2e-mock-key",
+      GROQ_API_URL: "http://127.0.0.1:3101/openai/v1/chat/completions",
     },
   },
 });

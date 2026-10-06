@@ -19,8 +19,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Trip Splitter",
-  description: "Split trip expenses with friends — track who paid and who owes.",
+  title: "Chia tiền văn phòng",
+  description:
+    "Ghi chi phí nhóm, chia tiền và xác nhận chuyển khoản trên PC và điện thoại.",
 };
 
 export default function RootLayout({
@@ -29,7 +30,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html
+      lang="vi"
+      data-scroll-behavior="smooth"
+      className={`${geist.variable} ${geistMono.variable}`}
+    >
       <body>{children}</body>
     </html>
   );
